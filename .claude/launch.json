@@ -6,6 +6,12 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": ["-c", ". \"$HOME/.nvm/nvm.sh\" && nvm use >/dev/null && npm run dev"],
       "port": 4321
+    },
+    {
+      "name": "dev-windows",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
+      "runtimeArgs": ["run", "dev"],
+      "port": 4321
     }
   ]
 }

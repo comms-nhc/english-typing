@@ -1,0 +1,525 @@
+---
+// The typing practice page. A "session" = one timed practice round.
+// The practice texts are in the <script> at the bottom (EASY_WORDS, MEDIUM, HARD).
+// Finished sessions are saved in the visitor's own browser (localStorage).
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+const levels = [
+  { id: 'easy', name: 'Easy', km: 'ងាយ' },
+  { id: 'medium', name: 'Medium', km: 'មធ្យម' },
+  { id: 'hard', name: 'Hard', km: 'ពិបាក' },
+];
+const times = [1, 2, 5];
+---
+
+<Base title="Practice">
+  <Header />
+
+  <main class="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-16">
+    <h1 class="font-display text-4xl font-extrabold tracking-tight sm:text-5xl">
+      Typing practice
+      <span class="km" lang="km">ហាត់វាយអក្សរ</span>
+    </h1>
+
+    <!-- SETTINGS -->
+    <div class="mt-8 grid gap-6 sm:grid-cols-2">
+      <div>
+        <p class="font-semibold">Level <span lang="km" class="font-khmer font-normal text-muted">· កម្រិត</span></p>
+        <div class="mt-2 flex flex-wrap gap-2" id="level-buttons">
+          {
+            levels.map((l) => (
+              <button type="button" data-level={l.id} class="choice rounded-full border border-ink/15 bg-white px-4 py-2 font-semibold transition hover:border-brand">
+                {l.name} <span lang="km" class="font-khmer font-normal opacity-70">{l.km}</span>
+              </button>
+            ))
+          }
+        </div>
+      </div>
+      <div>
+        <p class="font-semibold">Time <span lang="km" class="font-khmer font-normal text-muted">· ពេលវេលា</span></p>
+        <div class="mt-2 flex flex-wrap gap-2" id="time-buttons">
+          {
+            times.map((t) => (
+              <button type="button" data-time={t} class="choice rounded-full border border-ink/15 bg-white px-4 py-2 font-semibold transition hover:border-brand">
+                {t} min <span lang="km" class="font-khmer font-normal opacity-70">{t} នាទី</span>
+              </button>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- LIVE STATS -->
+    <div class="mt-8 grid grid-cols-3 gap-3">
+      <div class="rounded-xl bg-white p-4 text-center">
+        <p id="time-left" class="font-display text-3xl font-extrabold sm:text-4xl">1:00</p>
+        <p class="text-xs text-muted">time left <span class="km" lang="km">ពេលនៅសល់</span></p>
+      </div>
+      <div class="rounded-xl bg-white p-4 text-center">
+        <p id="live-wpm" class="font-display text-3xl font-extrabold text-brand sm:text-4xl">0</p>
+        <p class="text-xs text-muted">words / minute <span class="km" lang="km">ពាក្យ / នាទី</span></p>
+      </div>
+      <div class="rounded-xl bg-white p-4 text-center">
+        <p id="live-acc" class="font-display text-3xl font-extrabold text-leaf sm:text-4xl">100%</p>
+        <p class="text-xs text-muted">accuracy <span class="km" lang="km">ភាពត្រឹមត្រូវ</span></p>
+      </div>
+    </div>
+
+    <!-- TYPING AREA -->
+    <div class="mt-6 rounded-2xl border border-ink/10 bg-white p-5 shadow-xl shadow-ink/5 sm:p-8">
+      <div id="text-box" class="relative h-[7.5em] overflow-hidden font-mono text-xl leading-[2.5em] sm:text-2xl" aria-live="off"></div>
+      <label for="typing-input" class="sr-only">Type the text here</label>
+      <textarea
+        id="typing-input"
+        rows="2"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="Click here and start typing… (ចុចទីនេះ ហើយចាប់ផ្តើមវាយ…)"
+        class="mt-4 w-full resize-none rounded-xl border-2 border-ink/10 bg-paper p-3 font-mono text-lg outline-none focus:border-brand"
+      ></textarea>
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
+        <p>
+          The timer starts when you type the first letter.
+          <span class="km" lang="km">ម៉ោងចាប់ផ្តើមរាប់ ពេលអ្នកវាយអក្សរទីមួយ។</span>
+        </p>
+        <button type="button" id="restart" class="rounded-full border border-ink/15 bg-white px-4 py-2 font-semibold text-ink hover:border-brand">
+          ↻ New text <span lang="km" class="font-khmer font-normal">អត្ថបទថ្មី</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- RESULTS (hidden until a session ends) -->
+    <section id="results" class="mt-6 hidden rounded-2xl bg-brand p-6 text-paper sm:p-8" aria-live="polite">
+      <p id="result-badge" class="hidden self-start rounded-full bg-sun px-3 py-1 text-sm font-bold text-ink">New best! 🎉</p>
+      <h2 class="mt-2 font-display text-3xl font-extrabold">
+        Session finished!
+        <span class="km" lang="km">វគ្គបានបញ្ចប់!</span>
+      </h2>
+      <div class="mt-6 grid grid-cols-3 gap-3 text-center">
+        <div class="rounded-xl bg-paper/15 p-4">
+          <p id="result-wpm" class="font-display text-4xl font-extrabold">0</p>
+          <p class="text-xs opacity-80">words / minute <span class="km" lang="km">ពាក្យ / នាទី</span></p>
+        </div>
+        <div class="rounded-xl bg-paper/15 p-4">
+          <p id="result-acc" class="font-display text-4xl font-extrabold">0%</p>
+          <p class="text-xs opacity-80">accuracy <span class="km" lang="km">ភាពត្រឹមត្រូវ</span></p>
+        </div>
+        <div class="rounded-xl bg-paper/15 p-4">
+          <p id="result-errors" class="font-display text-4xl font-extrabold">0</p>
+          <p class="text-xs opacity-80">mistakes <span class="km" lang="km">កំហុស</span></p>
+        </div>
+      </div>
+      <p id="result-message" class="mt-6 text-lg font-semibold"></p>
+      <p id="result-message-km" class="km" lang="km"></p>
+      <button type="button" id="try-again" class="mt-6 rounded-full bg-paper px-6 py-3 font-semibold text-ink hover:bg-sun">
+        Try again <span lang="km" class="font-khmer font-normal">សាកម្តងទៀត</span>
+      </button>
+    </section>
+
+    <!-- SESSION HISTORY -->
+    <section class="mt-14">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <h2 class="font-display text-3xl font-extrabold">
+          Your sessions
+          <span class="km" lang="km">វគ្គរបស់អ្នក</span>
+        </h2>
+        <button type="button" id="clear-history" class="hidden text-sm font-semibold text-muted underline underline-offset-4 hover:text-oops">
+          Clear history <span lang="km" class="font-khmer font-normal">លុបប្រវត្តិ</span>
+        </button>
+      </div>
+
+      <div id="summary" class="mt-6 hidden grid-cols-3 gap-3 text-center">
+        <div class="rounded-xl bg-white p-4">
+          <p id="sum-count" class="font-display text-3xl font-extrabold">0</p>
+          <p class="text-xs text-muted">sessions <span class="km" lang="km">វគ្គ</span></p>
+        </div>
+        <div class="rounded-xl bg-white p-4">
+          <p id="sum-best" class="font-display text-3xl font-extrabold text-brand">0</p>
+          <p class="text-xs text-muted">best speed <span class="km" lang="km">ល្បឿនល្អបំផុត</span></p>
+        </div>
+        <div class="rounded-xl bg-white p-4">
+          <p id="sum-avg" class="font-display text-3xl font-extrabold text-leaf">0%</p>
+          <p class="text-xs text-muted">average accuracy <span class="km" lang="km">ភាពត្រឹមត្រូវមធ្យម</span></p>
+        </div>
+      </div>
+
+      <p id="no-history" class="mt-6 rounded-xl bg-white p-6 text-muted">
+        No sessions yet. Finish your first session and it will appear here.
+        <span class="km" lang="km">មិនទាន់មានវគ្គទេ។ បញ្ចប់វគ្គដំបូងរបស់អ្នក ហើយវានឹងបង្ហាញនៅទីនេះ។</span>
+      </p>
+
+      <div class="mt-4 overflow-x-auto">
+        <table id="history-table" class="hidden w-full min-w-[28rem] text-left text-sm">
+          <thead class="text-muted">
+            <tr class="border-b border-ink/10">
+              <th class="py-2 pr-3 font-semibold">Date <span lang="km" class="font-khmer font-normal">· កាលបរិច្ឆេទ</span></th>
+              <th class="py-2 pr-3 font-semibold">Level <span lang="km" class="font-khmer font-normal">· កម្រិត</span></th>
+              <th class="py-2 pr-3 font-semibold">Time <span lang="km" class="font-khmer font-normal">· ពេល</span></th>
+              <th class="py-2 pr-3 font-semibold">WPM</th>
+              <th class="py-2 font-semibold">Accuracy <span lang="km" class="font-khmer font-normal">· ត្រឹមត្រូវ</span></th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+      <p class="mt-4 text-xs text-muted">
+        Your sessions are saved only in this browser, on this device.
+        <span class="km" lang="km">វគ្គរបស់អ្នកត្រូវបានរក្សាទុកតែនៅក្នុងកម្មវិធីរុករកនេះ នៅលើឧបករណ៍នេះប៉ុណ្ណោះ។</span>
+      </p>
+    </section>
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  /* Letters in the text box. */
+  #text-box :global(span.ok) { color: var(--color-leaf); }
+  #text-box :global(span.bad) { color: var(--color-oops); background: color-mix(in srgb, var(--color-oops) 15%, transparent); border-radius: 3px; }
+  #text-box :global(span.todo) { color: color-mix(in srgb, var(--color-ink) 40%, transparent); }
+  #text-box :global(span.now) { box-shadow: inset 0 -3px 0 var(--color-brand); color: var(--color-ink); }
+  .choice[aria-pressed='true'] { background: var(--color-brand); border-color: var(--color-brand); color: var(--color-paper); }
+</style>
+
+<script>
+  // ---------- PRACTICE TEXTS (change or add your own!) ----------
+  const EASY_WORDS = (
+    'the and you are can see run cat dog sun red big hot sit cup map pen box bag hat fish book tree home milk rice ' +
+    'good day night water happy smile friend school teacher family mother father sister brother apple mango banana ' +
+    'green blue black white small long fast slow open close come go eat drink play read write walk talk sing jump ' +
+    'love help work time year week today city river rain wind moon star car bus road shop market money phone music'
+  ).split(' ');
+
+  const MEDIUM = [
+    'i go to school every morning',
+    'my mother cooks rice for the family',
+    'we play football after class',
+    'the market is busy on sunday',
+    'my friend likes to read books',
+    'please open the window it is hot',
+    'i drink water when i am tired',
+    'the teacher writes on the board',
+    'we eat mango in the hot season',
+    'my brother rides a bike to work',
+    'the rain is very heavy today',
+    'i want to learn english every day',
+    'she sings a song with her sister',
+    'the bus stops near my house',
+    'we can practice typing together',
+  ];
+
+  const HARD = [
+    'Phnom Penh has about 2 million people.',
+    'Angkor Wat was built in the 12th century.',
+    'My phone number has 9 or 10 digits.',
+    "Don't forget to bring your notebook, please!",
+    'Can you meet me at 7:30 in the morning?',
+    'The Mekong River is more than 4,000 km long.',
+    'I bought 3 mangoes, 2 bananas, and 1 coconut.',
+    'Practice makes progress, not perfection.',
+    'Typing fast is good; typing correctly is better.',
+    'She said, "Thank you for your help!"',
+    'Our class starts on Monday, 4 November.',
+    'Is it hot today? Yes, it is 35 degrees.',
+  ];
+
+  // ---------- SETTINGS ----------
+  type Level = 'easy' | 'medium' | 'hard';
+  const LEVEL_NAMES: Record<Level, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+  const STORAGE_KEY = 'english-typing-sessions';
+
+  const params = new URLSearchParams(location.search);
+  let level: Level = (['easy', 'medium', 'hard'].includes(params.get('level') ?? '') ? params.get('level') : 'easy') as Level;
+  let minutes = 1;
+
+  // ---------- PAGE ELEMENTS ----------
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+  const textBox = $('text-box');
+  const input = $<HTMLTextAreaElement>('typing-input');
+  const timeLeftEl = $('time-left');
+  const liveWpm = $('live-wpm');
+  const liveAcc = $('live-acc');
+  const results = $('results');
+
+  // ---------- SESSION STATE ----------
+  let target = '';
+  let letters: HTMLSpanElement[] = [];
+  let typed = '';
+  let keystrokes = 0;
+  let correctKeystrokes = 0;
+  let mistakes = 0;
+  let startTime = 0;
+  let timer = 0;
+  let finished = false;
+
+  function shuffle<T>(list: T[]): T[] {
+    const a = [...list];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // Make a text long enough that nobody runs out before the time ends.
+  function makeText(): string {
+    const needed = minutes * 60 * 12; // ~140 words per minute, more than enough
+    let parts: string[] = [];
+    while (parts.join(' ').length < needed) {
+      if (level === 'easy') parts.push(...shuffle(EASY_WORDS));
+      else parts.push(...shuffle(level === 'medium' ? MEDIUM : HARD));
+    }
+    return parts.join(' ').slice(0, needed).trim();
+  }
+
+  function formatTime(ms: number): string {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  function countCorrect(): number {
+    let n = 0;
+    for (let i = 0; i < typed.length; i++) if (typed[i] === target[i]) n++;
+    return n;
+  }
+
+  function wpmNow(): number {
+    const elapsedMin = startTime ? (Date.now() - startTime) / 60000 : 0;
+    if (elapsedMin < 0.05) return 0; // wait a few seconds before showing a speed
+    return Math.round(countCorrect() / 5 / elapsedMin);
+  }
+
+  function accuracyNow(): number {
+    return keystrokes ? Math.round((correctKeystrokes / keystrokes) * 100) : 100;
+  }
+
+  function paintLetter(i: number) {
+    const span = letters[i];
+    if (!span) return;
+    if (i < typed.length) span.className = typed[i] === target[i] ? 'ok' : 'bad';
+    else span.className = i === typed.length ? 'todo now' : 'todo';
+  }
+
+  // Keep the current line visible: scroll so it is the 2nd of 3 lines.
+  function scrollToCursor() {
+    const current = letters[typed.length] ?? letters[letters.length - 1];
+    if (!current) return;
+    const lineHeight = parseFloat(getComputedStyle(textBox).lineHeight);
+    textBox.scrollTop = Math.max(0, current.offsetTop - lineHeight);
+  }
+
+  function updateStats() {
+    if (startTime) timeLeftEl.textContent = formatTime(minutes * 60000 - (Date.now() - startTime));
+    liveWpm.textContent = String(wpmNow());
+    liveAcc.textContent = `${accuracyNow()}%`;
+  }
+
+  // ---------- START / RESET ----------
+  function newSession() {
+    clearInterval(timer);
+    target = makeText();
+    typed = '';
+    keystrokes = correctKeystrokes = mistakes = 0;
+    startTime = 0;
+    finished = false;
+
+    textBox.textContent = '';
+    letters = [...target].map((ch) => {
+      const span = document.createElement('span');
+      span.textContent = ch;
+      textBox.append(span);
+      return span;
+    });
+    letters.forEach((_, i) => paintLetter(i));
+    textBox.scrollTop = 0;
+
+    input.value = '';
+    input.disabled = false;
+    results.classList.add('hidden');
+    timeLeftEl.textContent = formatTime(minutes * 60000);
+    liveWpm.textContent = '0';
+    liveAcc.textContent = '100%';
+    markChoices();
+  }
+
+  function finishSession() {
+    if (finished) return;
+    finished = true;
+    clearInterval(timer);
+    input.disabled = true;
+
+    // Use the full session length if time ran out, or the real time if the text was finished.
+    const elapsedMin = Math.min(minutes, (Date.now() - startTime) / 60000);
+    const wpm = Math.round(countCorrect() / 5 / Math.max(elapsedMin, 0.05));
+    const accuracy = accuracyNow();
+
+    const history = loadHistory();
+    const best = history.reduce((m, s) => Math.max(m, s.wpm), 0);
+    const session: Session = { date: Date.now(), level, minutes, wpm, accuracy, mistakes };
+    saveHistory([session, ...history].slice(0, 50));
+
+    $('result-wpm').textContent = String(wpm);
+    $('result-acc').textContent = `${accuracy}%`;
+    $('result-errors').textContent = String(mistakes);
+    $('result-badge').classList.toggle('hidden', !(history.length > 0 && wpm > best));
+    const [en, km] = message(wpm, accuracy);
+    $('result-message').textContent = en;
+    $('result-message-km').textContent = km;
+    results.classList.remove('hidden');
+    results.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showHistory();
+  }
+
+  function message(wpm: number, accuracy: number): [string, string] {
+    if (accuracy < 85)
+      return ['Slow down a little and try to make fewer mistakes. You can do it!', 'វាយយឺតបន្តិច ហើយព្យាយាមកុំឱ្យខុសច្រើន។ អ្នកអាចធ្វើបាន!'];
+    if (wpm < 15) return ['Good start! Practice every day and you will get faster.', 'ការចាប់ផ្តើមល្អ! ហាត់រៀងរាល់ថ្ងៃ ហើយអ្នកនឹងលឿនជាងមុន។'];
+    if (wpm < 30) return ['Nice work! You are getting better.', 'ល្អណាស់! អ្នកកំពុងរីកចម្រើន។'];
+    if (wpm < 45) return ['Great typing! Try a harder level.', 'វាយបានល្អណាស់! សាកកម្រិតពិបាកជាងនេះ។'];
+    return ['Amazing! You type like a pro! 🚀', 'អស្ចារ្យណាស់! អ្នកវាយដូចអ្នកជំនាញ! 🚀'];
+  }
+
+  // ---------- TYPING ----------
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.preventDefault(); // the text has no new lines
+  });
+  input.addEventListener('paste', (e) => e.preventDefault()); // no copy-paste cheating 🙂
+
+  input.addEventListener('input', () => {
+    if (finished) return;
+    let value = input.value.replace(/\n/g, '');
+    if (value.length > target.length) value = value.slice(0, target.length);
+    if (value !== input.value) input.value = value;
+
+    if (!startTime && value.length > 0) {
+      startTime = Date.now();
+      timer = window.setInterval(() => {
+        updateStats();
+        if (Date.now() - startTime >= minutes * 60000) finishSession();
+      }, 200);
+    }
+
+    // Count only new letters as keystrokes (backspace is not a mistake).
+    for (let i = typed.length; i < value.length; i++) {
+      keystrokes++;
+      if (value[i] === target[i]) correctKeystrokes++;
+      else mistakes++;
+    }
+
+    const old = typed;
+    typed = value;
+    const from = Math.min(old.length, typed.length);
+    const to = Math.max(old.length, typed.length) + 1;
+    for (let i = from; i <= to; i++) paintLetter(i);
+    scrollToCursor();
+    updateStats();
+
+    if (typed.length === target.length) finishSession();
+  });
+
+  // ---------- LEVEL AND TIME BUTTONS ----------
+  function markChoices() {
+    document.querySelectorAll<HTMLButtonElement>('[data-level]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.level === level)));
+    document.querySelectorAll<HTMLButtonElement>('[data-time]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.time) === minutes)));
+  }
+  document.querySelectorAll<HTMLButtonElement>('[data-level]').forEach((b) =>
+    b.addEventListener('click', () => {
+      level = b.dataset.level as Level;
+      newSession();
+      input.focus();
+    }),
+  );
+  document.querySelectorAll<HTMLButtonElement>('[data-time]').forEach((b) =>
+    b.addEventListener('click', () => {
+      minutes = Number(b.dataset.time);
+      newSession();
+      input.focus();
+    }),
+  );
+  $('restart').addEventListener('click', () => {
+    newSession();
+    input.focus();
+  });
+  $('try-again').addEventListener('click', () => {
+    newSession();
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    input.focus({ preventScroll: true });
+  });
+
+  // ---------- SESSION HISTORY (saved in this browser) ----------
+  interface Session {
+    date: number;
+    level: Level;
+    minutes: number;
+    wpm: number;
+    accuracy: number;
+    mistakes: number;
+  }
+
+  function loadHistory(): Session[] {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveHistory(list: Session[]) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    } catch {
+      // Private mode or storage blocked: the session still shows, it just isn't saved.
+    }
+  }
+
+  function showHistory() {
+    const history = loadHistory();
+    const has = history.length > 0;
+    $('no-history').classList.toggle('hidden', has);
+    $('history-table').classList.toggle('hidden', !has);
+    $('clear-history').classList.toggle('hidden', !has);
+    $('summary').classList.toggle('hidden', !has);
+    $('summary').classList.toggle('grid', has);
+    if (!has) return;
+
+    $('sum-count').textContent = String(history.length);
+    $('sum-best').textContent = String(Math.max(...history.map((s) => s.wpm)));
+    $('sum-avg').textContent = `${Math.round(history.reduce((t, s) => t + s.accuracy, 0) / history.length)}%`;
+
+    const body = $('history-body');
+    body.textContent = '';
+    for (const s of history) {
+      const row = document.createElement('tr');
+      row.className = 'border-b border-ink/5';
+      const cells = [
+        new Date(s.date).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        LEVEL_NAMES[s.level] ?? s.level,
+        `${s.minutes} min`,
+        String(s.wpm),
+        `${s.accuracy}%`,
+      ];
+      cells.forEach((text, i) => {
+        const td = document.createElement('td');
+        td.className = i === 3 ? 'py-2 pr-3 font-bold text-brand' : 'py-2 pr-3';
+        td.textContent = text;
+        row.append(td);
+      });
+      body.append(row);
+    }
+  }
+
+  $('clear-history').addEventListener('click', () => {
+    if (confirm('Delete all your saved sessions? / លុបវគ្គដែលបានរក្សាទុកទាំងអស់?')) {
+      saveHistory([]);
+      showHistory();
+    }
+  });
+
+  newSession();
+  showHistory();
+</script>
